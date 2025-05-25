@@ -1,0 +1,5 @@
+1) Name of the pitch shifted to
+2) While saving name of pitch shifted to should be appended in the file name
+3) Increase/decrease tempo(BPM) either or/and
+4) Should be able to select a time range in song to shift the pitch and play immediately. If ok
+apply it to the whole song
