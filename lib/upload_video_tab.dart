@@ -10,7 +10,7 @@ class UploadVideoTab extends StatefulWidget {
   State<UploadVideoTab> createState() => _UploadVideoTabState();
 }
 
-class _UploadVideoTabState extends State<UploadVideoTab> with TickerProviderStateMixin {
+class _UploadVideoTabState extends State<UploadVideoTab> {
   String? _filePath;
   String? _fileName;
   String? _originalPitch;
@@ -18,7 +18,6 @@ class _UploadVideoTabState extends State<UploadVideoTab> with TickerProviderStat
   bool _showProgress = false;
   double _progress = 0.0;
   String _progressPhase = "";
-  bool _pitchDetected = false;
 
   Future<void> _pickVideoFile() async {
     final result = await FilePicker.platform.pickFiles(
@@ -38,7 +37,6 @@ class _UploadVideoTabState extends State<UploadVideoTab> with TickerProviderStat
         _showProgress = true;
         _progress = 0.3;
         _progressPhase = "Detecting pitch...";
-        _pitchDetected = false;
       });
 
       final pitchResult = await PitchProcessingService.detectPitch(path);
@@ -51,10 +49,7 @@ class _UploadVideoTabState extends State<UploadVideoTab> with TickerProviderStat
       });
 
       await Future.delayed(const Duration(milliseconds: 500));
-      setState(() {
-        _showProgress = false;
-        _pitchDetected = true;
-      });
+      setState(() => _showProgress = false);
     }
   }
 
@@ -66,67 +61,63 @@ class _UploadVideoTabState extends State<UploadVideoTab> with TickerProviderStat
         children: [
           Padding(
             padding: const EdgeInsets.all(24),
-            child: SingleChildScrollView(
-              child: Column(
-                children: [
-                  AnimatedAlign(
-                    duration: const Duration(milliseconds: 600),
-                    alignment: _pitchDetected ? Alignment.topRight : Alignment.center,
-                    child: AnimatedSwitcher(
-                      duration: const Duration(milliseconds: 400),
-                      child: _pitchDetected
-                          ? IconButton(
-                              key: const ValueKey('icon'),
-                              icon: const Icon(Icons.video_library, size: 28, color: Color(0xFF845EC2)),
-                              tooltip: 'Re-upload MP4',
-                              onPressed: _pickVideoFile,
-                            )
-                          : InkWell(
-                              key: const ValueKey('button'),
-                              onTap: _showProgress ? null : _pickVideoFile,
-                              borderRadius: BorderRadius.circular(12),
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-                                decoration: BoxDecoration(
-                                  borderRadius: BorderRadius.circular(12),
-                                  gradient: const LinearGradient(
-                                    colors: [Color(0xFF00C9A7), Color(0xFF845EC2)],
-                                    begin: Alignment.topLeft,
-                                    end: Alignment.bottomRight,
-                                  ),
-                                  boxShadow: const [
-                                    BoxShadow(
-                                      color: Colors.black26,
-                                      blurRadius: 6,
-                                      offset: Offset(0, 3),
-                                    )
-                                  ],
-                                ),
-                                child: const Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Icon(Icons.video_library, color: Colors.white),
-                                    SizedBox(width: 8),
-                                    Text("Upload MP4", style: TextStyle(fontSize: 18, color: Colors.white, fontWeight: FontWeight.bold)),
-                                  ],
-                                ),
-                              ),
-                            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                // Always top-centered Upload MP4 button
+                Center(
+                  child: InkWell(
+                    onTap: _showProgress ? null : _pickVideoFile,
+                    borderRadius: BorderRadius.circular(12),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(12),
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFF00C9A7), Color(0xFF845EC2)],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                        boxShadow: const [
+                          BoxShadow(
+                            color: Colors.black26,
+                            blurRadius: 6,
+                            offset: Offset(0, 3),
+                          )
+                        ],
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.video_library, color: Colors.white),
+                          SizedBox(width: 8),
+                          Text(
+                            "Upload MP4",
+                            style: TextStyle(fontSize: 18, color: Colors.white, fontWeight: FontWeight.bold),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
-                  const SizedBox(height: 20),
-                  if (_filePath != null && _originalPitch != null)
-                    PitchShiftPanel(
+                ),
+
+                const SizedBox(height: 20),
+
+                // Show pitch shift panel below
+                if (_filePath != null && _originalPitch != null)
+                  Expanded(
+                    child: PitchShiftPanel(
                       inputPath: _filePath!,
                       fileName: _fileName!,
                       originalPitch: _originalPitch!,
                       frequency: _frequency,
-                      isVideo: true,
+                      //isVideo: true,
                     ),
-                ],
-              ),
+                  ),
+              ],
             ),
           ),
+
           if (_showProgress) _buildProgressOverlay(),
         ],
       ),

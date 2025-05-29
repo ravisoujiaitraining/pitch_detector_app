@@ -5,19 +5,22 @@ import 'package:flutter/material.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:audio_session/audio_session.dart';
 import 'package:path/path.dart' as p;
-import 'package:share_plus/share_plus.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
+import 'smart_filename_scroller.dart';
 
 class GradientAudioPlayer extends StatefulWidget {
   final String outputPath;
   final String fileName;
   final bool autoPlay;
+  final bool showHeader;
 
   const GradientAudioPlayer({
     super.key,
     required this.outputPath,
     required this.fileName,
     this.autoPlay = false,
+    this.showHeader = true,
   });
 
   @override
@@ -36,6 +39,7 @@ class _GradientAudioPlayerState extends State<GradientAudioPlayer> {
           outputPath: widget.outputPath,
           fileName: widget.fileName,
           autoPlay: true,
+          showHeader: false,
         ),
       ),
     );
@@ -43,6 +47,15 @@ class _GradientAudioPlayerState extends State<GradientAudioPlayer> {
 
   @override
   Widget build(BuildContext context) {
+    if (!widget.showHeader) {
+      return _AudioPlayerUI(
+        outputPath: widget.outputPath,
+        fileName: widget.fileName,
+        autoPlay: widget.autoPlay,
+        showHeader: false,
+      );
+    }
+
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 16),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -60,10 +73,11 @@ class _GradientAudioPlayerState extends State<GradientAudioPlayer> {
           const Icon(Icons.audiotrack, color: Colors.white),
           const SizedBox(width: 8),
           Expanded(
-            child: Text(
-              p.basename(widget.outputPath),
+            child: SmartFilenameScroller(
+              text: p.basename(widget.outputPath),
               style: const TextStyle(fontSize: 16, color: Colors.white, fontWeight: FontWeight.w600),
-              softWrap: true,
+              width: MediaQuery.of(context).size.width * 0.5,
+              scroll: false,
             ),
           ),
           IconButton(
@@ -80,11 +94,13 @@ class _AudioPlayerUI extends StatefulWidget {
   final String outputPath;
   final String fileName;
   final bool autoPlay;
+  final bool showHeader;
 
   const _AudioPlayerUI({
     required this.outputPath,
     required this.fileName,
     required this.autoPlay,
+    required this.showHeader,
   });
 
   @override
@@ -96,6 +112,8 @@ class _AudioPlayerUIState extends State<_AudioPlayerUI> with SingleTickerProvide
   Duration _total = Duration.zero;
   Duration _pos = Duration.zero;
   bool _isPlaying = false;
+  double _volume = 1.0;
+  bool _muted = false;
 
   late AnimationController _waveController;
   late List<double> _waveHeights;
@@ -114,10 +132,11 @@ class _AudioPlayerUIState extends State<_AudioPlayerUI> with SingleTickerProvide
     _waveHeights = List.generate(60, (_) => Random().nextDouble());
 
     _waveTimer = Timer.periodic(const Duration(milliseconds: 300), (_) {
-      if (!mounted) return;
-      setState(() {
-        _waveHeights = List.generate(60, (_) => Random().nextDouble());
-      });
+      if (_isPlaying && mounted) {
+        setState(() {
+          _waveHeights = List.generate(60, (_) => Random().nextDouble());
+        });
+      }
     });
 
     _init();
@@ -130,6 +149,8 @@ class _AudioPlayerUIState extends State<_AudioPlayerUI> with SingleTickerProvide
     try {
       await _player.setFilePath(widget.outputPath);
       _total = _player.duration ?? Duration.zero;
+      _player.setVolume(_volume);
+
       _player.positionStream.listen((d) {
         if (mounted) setState(() => _pos = d);
       });
@@ -139,7 +160,7 @@ class _AudioPlayerUIState extends State<_AudioPlayerUI> with SingleTickerProvide
 
       if (widget.autoPlay) _player.play();
     } catch (e) {
-      debugPrint("Error: $e");
+      debugPrint("Error loading audio: $e");
     }
   }
 
@@ -153,37 +174,10 @@ class _AudioPlayerUIState extends State<_AudioPlayerUI> with SingleTickerProvide
 
   String _format(Duration d) => '${d.inMinutes}:${(d.inSeconds % 60).toString().padLeft(2, '0')}';
 
-  Future<void> _downloadFileWithPrompt() async {
-    final TextEditingController nameController = TextEditingController(text: widget.fileName);
-    final result = await showDialog<String>(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text("Save As"),
-        content: TextField(controller: nameController, decoration: const InputDecoration(labelText: "File name")),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text("Cancel")),
-          TextButton(onPressed: () => Navigator.pop(context, nameController.text.trim()), child: const Text("Save")),
-        ],
-      ),
-    );
-
-    if (result != null && result.isNotEmpty) {
-      try {
-        final dir = await getApplicationDocumentsDirectory();
-        final newPath = '${dir.path}/$result';
-        await File(widget.outputPath).copy(newPath);
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("✅ File saved to $newPath")),
-        );
-      } catch (e) {
-        debugPrint("Download error: $e");
-      }
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
+    final marqueeWidth = MediaQuery.of(context).size.width * 0.7;
+
     return Container(
       decoration: BoxDecoration(
         gradient: const LinearGradient(
@@ -197,8 +191,12 @@ class _AudioPlayerUIState extends State<_AudioPlayerUI> with SingleTickerProvide
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(widget.fileName,
-              style: const TextStyle(fontSize: 20, color: Colors.white, fontWeight: FontWeight.bold)),
+          SmartFilenameScroller(
+            text: widget.fileName,
+            style: const TextStyle(fontSize: 20, color: Colors.white, fontWeight: FontWeight.bold),
+            width: marqueeWidth,
+            scroll: _isPlaying,
+          ),
           const SizedBox(height: 16),
           SizedBox(
             height: 50,
@@ -234,26 +232,68 @@ class _AudioPlayerUIState extends State<_AudioPlayerUI> with SingleTickerProvide
           ),
           const SizedBox(height: 16),
           Row(
+            children: [
+              const Icon(Icons.volume_up, color: Colors.white),
+              Expanded(
+                child: Slider(
+                  value: _volume,
+                  min: 0,
+                  max: 1,
+                  divisions: 10,
+                  onChanged: (val) {
+                    setState(() {
+                      _volume = val;
+                      _muted = val == 0;
+                      _player.setVolume(_volume);
+                    });
+                  },
+                  activeColor: Colors.white,
+                  inactiveColor: Colors.white30,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               IconButton(
                 icon: Icon(_isPlaying ? Icons.pause_circle : Icons.play_circle, size: 48, color: Colors.white),
                 onPressed: () => _isPlaying ? _player.pause() : _player.play(),
               ),
-              const SizedBox(width: 20),
+              const SizedBox(width: 16),
               IconButton(
-                icon: const Icon(Icons.download_rounded, size: 32, color: Colors.white),
-                onPressed: _downloadFileWithPrompt,
+                icon: Icon(
+                  _muted || _volume == 0 ? Icons.volume_off : Icons.volume_up,
+                  color: Colors.white,
+                  size: 32,
+                ),
+                onPressed: () {
+                  setState(() {
+                    if (_volume > 0) {
+                      _volume = 0;
+                      _muted = true;
+                    } else {
+                      _volume = 1.0;
+                      _muted = false;
+                    }
+                    _player.setVolume(_volume);
+                  });
+                },
               ),
               IconButton(
                 icon: const Icon(Icons.share_rounded, size: 32, color: Colors.white),
-                onPressed: () {
-                  Share.shareXFiles([XFile(widget.outputPath)], text: "Listen to this audio!");
+                onPressed: () async {
+                  final appDocDir = await getApplicationDocumentsDirectory();
+                  final newPath = p.join(appDocDir.path, widget.fileName);
+                  final originalFile = File(widget.outputPath);
+                  final savedFile = await originalFile.copy(newPath);
+                  await Share.shareXFiles([XFile(savedFile.path)], text: "🎵 Check out this pitch-shifted audio!");
                 },
               ),
               IconButton(
                 icon: const Icon(Icons.close_rounded, size: 32, color: Colors.white),
-                onPressed: () => Navigator.pop(context),
+                onPressed: () => Navigator.of(context).pop(),
               ),
             ],
           ),

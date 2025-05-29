@@ -22,7 +22,7 @@ class _UploadAudioTabState extends State<UploadAudioTab> {
   Future<void> _pickAudioFile() async {
     final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
-      allowedExtensions: ['mp3', 'wav'],
+      allowedExtensions: ['mp3', 'wav', 'mp4'],
     );
 
     if (result != null && result.files.single.path != null) {
@@ -56,7 +56,7 @@ class _UploadAudioTabState extends State<UploadAudioTab> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.transparent,
+      backgroundColor: const Color.fromARGB(0, 191, 85, 19),
       body: Stack(
         children: [
           Padding(
@@ -64,35 +64,48 @@ class _UploadAudioTabState extends State<UploadAudioTab> {
             child: SingleChildScrollView(
               child: Column(
                 children: [
-                  Center(
-                    child: InkWell(
-                      onTap: _showProgress ? null : _pickAudioFile,
-                      borderRadius: BorderRadius.circular(12),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 36, vertical: 16),
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(16),
-                          gradient: const LinearGradient(
-                            colors: [Color(0xFF00C9A7), Color(0xFF845EC2)],
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
+                  const SizedBox(height: 16),
+                  InkWell(
+                    onTap: _showProgress ? null : _pickAudioFile,
+                    borderRadius: BorderRadius.circular(16),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
+                      width: double.infinity,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: const Color.fromARGB(255, 35, 92, 138)),
+                        color: const Color.fromARGB(179, 67, 188, 203),
+                      ),
+                      child: const Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                           Icon(Icons.upload_rounded, size: 40, color: Colors.white),
+                           SizedBox(width: 16),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.center,
+                            children:  [
+                              Text(
+                                "Upload Track",
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                ),
+                              ),
+                              SizedBox(height: 4),
+                              Text(
+                                ".mp3, .wav or .mp4",
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.normal,
+                                  color: Colors.white70,
+                                ),
+                              ),
+                            ],
                           ),
-                          boxShadow: const [
-                            BoxShadow(
-                              color: Colors.black26,
-                              blurRadius: 6,
-                              offset: Offset(0, 3),
-                            )
-                          ],
-                        ),
-                        child: const Text(
-                          "Upload Song",
-                          style: TextStyle(
-                            fontSize: 18,
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
+                        ],
                       ),
                     ),
                   ),
@@ -101,7 +114,6 @@ class _UploadAudioTabState extends State<UploadAudioTab> {
                     PitchShiftPanel(
                       inputPath: _filePath!,
                       fileName: _fileName!,
-                      isVideo: false,
                       originalPitch: _originalPitch!,
                       frequency: _frequency,
                     ),
