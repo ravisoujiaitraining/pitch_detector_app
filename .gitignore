@@ -1,3 +1,10 @@
+linux/
+macos/
+web/
+windows/
+test/
+android/
+.dart_tool
 # Miscellaneous
 *.class
 *.log
@@ -41,4 +48,3 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
-
