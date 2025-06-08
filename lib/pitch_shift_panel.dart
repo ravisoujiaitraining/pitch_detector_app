@@ -2,7 +2,6 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
-import 'package:share_plus/share_plus.dart';
 import 'pitch_processing_service.dart';
 import 'gradient_audio_player.dart';
 import 'full_screen_video_player.dart';

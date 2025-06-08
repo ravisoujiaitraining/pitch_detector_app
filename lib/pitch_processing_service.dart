@@ -1,16 +1,33 @@
-import 'package:flutter/services.dart';
+import 'dart:io';
 
+import 'package:flutter/services.dart';
 class PitchProcessingService {
   static const MethodChannel _channel = MethodChannel('com.example.pitch_detector');
 
   /// Detects pitch from a given audio or video file path
   static Future<Map<String, dynamic>?> detectPitch(String filePath) async {
     try {
+
+      if (Platform.isAndroid) {
+          print("Android pitch detection ........");
+
+      try {
+        final result = await _channel.invokeMethod('detectPitch', {'filePath': filePath});
+        return {
+        'note': result?['note'],
+        'frequency': result?['frequency']
+      };
+      } catch (e) {
+        print("Android pitch detection failed: $e");
+        return null;
+      }
+    } else {
       final result = await _channel.invokeMethod<Map>('detectPitch', {'filePath': filePath});
       return {
         'note': result?['note'],
         'frequency': result?['frequency']
       };
+    }
     } catch (e) {
       print('Error detecting pitch: $e');
       return null;

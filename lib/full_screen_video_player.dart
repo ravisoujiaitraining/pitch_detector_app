@@ -1,10 +1,11 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:path/path.dart' as p;
-import 'package:share_plus/share_plus.dart';
 import 'package:video_player/video_player.dart';
 import 'smart_filename_scroller.dart';
-
+import 'package:path_provider/path_provider.dart';
+import 'upload_page.dart';
+import 'package:share_plus/share_plus.dart';
 class FullscreenVideoPlayer extends StatefulWidget {
   final String videoPath;
   final Duration startPosition;
@@ -22,12 +23,12 @@ class FullscreenVideoPlayer extends StatefulWidget {
   @override
   State<FullscreenVideoPlayer> createState() => _FullscreenVideoPlayerState();
 }
-
 class _FullscreenVideoPlayerState extends State<FullscreenVideoPlayer> {
   VideoPlayerController? _controller;
   bool _isPlaying = false;
   double _volume = 0.75;
   VoidCallback? _controllerListener;
+  final GlobalKey _shareKey = GlobalKey();
 
   @override
   void initState() {
@@ -63,7 +64,16 @@ class _FullscreenVideoPlayerState extends State<FullscreenVideoPlayer> {
       _controller = controller;
     });
   }
+Future<String> saveLocalCopy(String filePath) async {
+  final appDir = await getApplicationDocumentsDirectory();
+  final fileName = filePath.split('/').last;
+  final newPath = '${appDir.path}/$fileName';
 
+  final sourceFile = File(filePath);
+  await sourceFile.copy(newPath);
+
+  return newPath;
+}
   @override
   void dispose() {
     if (_controller != null && _controllerListener != null) {
@@ -73,6 +83,41 @@ class _FullscreenVideoPlayerState extends State<FullscreenVideoPlayer> {
     _controller?.dispose();
     super.dispose();
   }
+Future<void> _shareVideo() async {
+  final file = File(widget.videoPath);
+  final tempDir = await getTemporaryDirectory();
+  final filename = p.basename(widget.videoPath);
+  final tempPath = '${tempDir.path}/$filename';
+  print("📤 Sharing video from: $tempPath");
+
+  if (!file.existsSync()) {
+    debugPrint("❌ File does not exist for sharing");
+    return;
+  }
+
+  try {
+    await file.copy(tempPath);
+
+    final box = _shareKey.currentContext?.findRenderObject() as RenderBox?;
+    final origin = (box != null && box.hasSize)
+        ? box.localToGlobal(Offset.zero) & box.size
+        : Rect.fromCenter(
+            center: Offset(
+              MediaQuery.of(context).size.width / 2,
+              MediaQuery.of(context).size.height / 2,
+            ),
+            width: 0,
+            height: 0,
+          );
+    await Share.shareXFiles(
+      [XFile(tempPath)],
+      text: "🎬 Here's your pitch-shifted video!",
+      sharePositionOrigin: origin,
+    );
+  } catch (e) {
+    debugPrint("❌ Error sharing file: $e");
+  }
+}
 
   void _togglePlayPause() {
     if (_controller == null) return;
@@ -219,12 +264,13 @@ class _FullscreenVideoPlayerState extends State<FullscreenVideoPlayer> {
 
                         // 📤 Share
                         IconButton(
+                          key: _shareKey,
                           icon: const Icon(Icons.share, color: Colors.white),
                           onPressed: () async {
-                            await Share.shareXFiles(
-                              [XFile(widget.videoPath)],
-                              text: "🎥 Check out this pitch-shifted video!",
-                            );
+                            _shareVideo();
+          
+                        mediaControlKey.currentState?.refreshMediaList();
+
                           },
                         ),
 

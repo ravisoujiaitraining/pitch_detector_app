@@ -11,36 +11,40 @@ class PitchDetector {
     private let minFrequency: Float = 80.0
     private let maxFrequency: Float = 1500.0
 
-    func analyze(samples: [Float], sampleRate: Float) -> Float {
-        let maxSamples = Int(sampleRate * maxDuration)
-        let trimmed = samples.prefix(maxSamples)
-        let totalFrames = (trimmed.count - frameSize) / hopSize
+    func analyze(samples: [Float], sampleRate: Float, progressSink: FlutterEventSink?) -> Float {
+            let maxSamples = Int(sampleRate * maxDuration)
+            let trimmed = samples.prefix(maxSamples)
+            let totalFrames = (trimmed.count - frameSize) / hopSize
 
-        var pitches: [Float] = []
-        print("🔍 Optimized analysis: \(totalFrames) frames max, 15s audio")
+            var pitches: [Float] = []
+            print("🔍 Optimized analysis: \(totalFrames) frames max, 15s audio")
 
-        for i in 0..<totalFrames {
-            let start = i * hopSize
-            let frame = trimmed[start..<start + frameSize]
-            let rms = sqrt(frame.reduce(0) { $0 + $1 * $1 } / Float(frameSize))
-            if rms < silenceThreshold { continue }
+            for i in 0..<totalFrames {
+                let start = i * hopSize
+                let frame = trimmed[start..<start + frameSize]
+                let rms = sqrt(frame.reduce(0) { $0 + $1 * $1 } / Float(frameSize))
+                if rms < silenceThreshold { continue }
 
-            if let f = detectYINPitch(samples: Array(frame), sampleRate: sampleRate),
-               f >= minFrequency, f <= maxFrequency {
-                pitches.append(f)
-                if pitches.count >= maxFramesToProcess { break }
+                if let f = detectYINPitch(samples: Array(frame), sampleRate: sampleRate),
+                   f >= minFrequency, f <= maxFrequency {
+                    pitches.append(f)
+                    let progress = 40 + Int(Float(i) / Float(maxFramesToProcess) * 30)
+                    DispatchQueue.main.async {
+                        progressSink?(min(progress, 95))
+                    }
+                    if pitches.count >= maxFramesToProcess { break }
+                }
             }
-        }
 
-        guard !pitches.isEmpty else {
-            print("⚠️ No valid pitches found.")
-            return 0.0
-        }
+            guard !pitches.isEmpty else {
+                print("⚠️ No valid pitches found.")
+                return 0.0
+            }
 
-        let avg = pitches.reduce(0, +) / Float(pitches.count)
-        print("✅ Average pitch over \(pitches.count) frames: \(avg) Hz")
-        return avg
-    }
+            let avg = pitches.reduce(0, +) / Float(pitches.count)
+            print("✅ Average pitch over \(pitches.count) frames: \(avg) Hz")
+            return avg
+        }
 
     private func detectYINPitch(samples: [Float], sampleRate: Float) -> Float? {
         let N = samples.count
@@ -86,4 +90,65 @@ class PitchDetector {
         let midi = 69 + 12 * log2(freq / 440.0)
         return notes[(Int(round(midi)) + 12) % 12]
     }
+    
+    func detectPitch(from path: String, progressSink: FlutterEventSink?, completion: @escaping (_ note: String, _ frequency: Float) -> Void, onError: @escaping (_ error: String) -> Void) {
+        DispatchQueue.global(qos: .userInitiated).async {
+                do {
+                    DispatchQueue.main.async {
+                                    progressSink?(0) // Start from 0%
+                                }
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                                    progressSink?(10)
+                                }
+                    let url = URL(fileURLWithPath: path)
+                    let audioFile = try AVAudioFile(forReading: url)
+                    let format = audioFile.processingFormat
+                    let frameCount = AVAudioFrameCount(audioFile.length)
+                    
+                    DispatchQueue.main.async { progressSink?(20) } // 0%: File opened
+
+                    let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: frameCount)!
+                    try audioFile.read(into: buffer)
+                    
+                    DispatchQueue.main.async { progressSink?(30) } // 30%: Audio read
+
+                    let channelCount = Int(format.channelCount)
+                    let sampleCount = Int(buffer.frameLength)
+
+                    var monoSamples = [Float](repeating: 0.0, count: sampleCount)
+                    for c in 0..<channelCount {
+                        let channel = buffer.floatChannelData![c]
+                        for i in 0..<sampleCount {
+                            monoSamples[i] += channel[i]
+                        }
+                    }
+                    for i in 0..<sampleCount {
+                        monoSamples[i] /= Float(channelCount)
+                    }
+
+                    DispatchQueue.main.async { progressSink?(40) } // 50%: Mono conversion
+
+                    let detector = PitchDetector()
+                    let frequency = self.analyze(samples: monoSamples, sampleRate: Float(format.sampleRate), progressSink: progressSink)
+
+                    DispatchQueue.main.async { progressSink?(95) } // 95%: Analysis done
+
+                    let note = PitchDetector.frequencyToNote(frequency)
+
+                    DispatchQueue.main.async {
+                        progressSink?(95) // 100%: Complete
+                        completion(note, frequency)
+                        progressSink?(100)
+                    }
+
+                } catch {
+                    print("❌ Error reading audio file: \(error)")
+                    DispatchQueue.main.async {
+                        progressSink?(100)
+                        completion("Error", 0.0)
+                    }
+                }
+            }
+    }
+
 }

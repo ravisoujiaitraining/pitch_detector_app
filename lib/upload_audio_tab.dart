@@ -1,8 +1,11 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:file_picker/file_picker.dart';
 import 'pitch_shift_panel.dart';
 import 'pitch_processing_service.dart';
-
+import 'package:flutter/services.dart';
+import 'package:percent_indicator/percent_indicator.dart';
 class UploadAudioTab extends StatefulWidget {
   const UploadAudioTab({super.key});
 
@@ -11,6 +14,11 @@ class UploadAudioTab extends StatefulWidget {
 }
 
 class _UploadAudioTabState extends State<UploadAudioTab> {
+  static const EventChannel _progressChannel =
+      EventChannel("com.example.pitch_detector/progress");
+static const EventChannel _progressEventChannel = EventChannel('com.example.pitch_detector/progress');
+  StreamSubscription? _progressSub;
+
   String? _filePath;
   String? _fileName;
   String? _originalPitch;
@@ -19,10 +27,15 @@ class _UploadAudioTabState extends State<UploadAudioTab> {
   double _progress = 0.0;
   String _progressPhase = "";
 
+  static const List<String> _validPitches = [
+    'C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'
+  ];
+
   Future<void> _pickAudioFile() async {
     final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
       allowedExtensions: ['mp3', 'wav', 'mp4'],
+      withData: true,
     );
 
     if (result != null && result.files.single.path != null) {
@@ -35,22 +48,71 @@ class _UploadAudioTabState extends State<UploadAudioTab> {
         _originalPitch = null;
         _frequency = null;
         _showProgress = true;
-        _progress = 0.3;
+        _progress = 0.0;
         _progressPhase = "Detecting pitch...";
       });
 
+      _listenToNativeProgress();
+
       final pitchResult = await PitchProcessingService.detectPitch(path);
 
-      setState(() {
-        _originalPitch = pitchResult?['note']?.toString();
-        _frequency = (pitchResult?['frequency'] as double?)?.toStringAsFixed(2);
-        _progress = 1.0;
-        _progressPhase = "Done!";
-      });
+      _progressSub?.cancel();
 
-      await Future.delayed(const Duration(milliseconds: 500));
-      setState(() => _showProgress = false);
+      final pitch = pitchResult?['note']?.toString();
+      final freq = (pitchResult?['frequency'] as double?)?.toStringAsFixed(2);
+
+      setState(() {
+  _progressPhase = "Finalizing...";
+  _progress = 1.0;
+});
+await Future.delayed(const Duration(seconds: 1)); // or longer if needed
+setState(() => _showProgress = false);
+
+      if (pitch == null || !_validPitches.contains(pitch)) {
+        _showErrorDialog("Unsupported pitch detected: ${pitch ?? 'Unknown'}.\nPlease upload a different audio file.");
+        return;
+      }
+
+      setState(() {
+        _originalPitch = pitch;
+        _frequency = freq;
+      });
     }
+  }
+
+  void _listenToNativeProgress() {
+    _progressSub = _progressChannel.receiveBroadcastStream().listen((data) {
+      if (data is int) {
+        setState(() {
+          _progress = data / 100.0;
+          _progressPhase = "Detecting pitch... $data%";
+        });
+      }
+    }, onError: (error) {
+      print("⚠️ EventChannel error: $error");
+    });
+  }
+
+  void _showErrorDialog(String message) {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text("Invalid Pitch"),
+        content: Text(message),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text("OK"),
+          )
+        ],
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    _progressSub?.cancel();
+    super.dispose();
   }
 
   @override
@@ -79,11 +141,11 @@ class _UploadAudioTabState extends State<UploadAudioTab> {
                       child: const Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                           Icon(Icons.upload_rounded, size: 40, color: Colors.white),
-                           SizedBox(width: 16),
+                          Icon(Icons.upload_rounded, size: 40, color: Colors.white),
+                          SizedBox(width: 16),
                           Column(
                             crossAxisAlignment: CrossAxisAlignment.center,
-                            children:  [
+                            children: [
                               Text(
                                 "Upload Track",
                                 textAlign: TextAlign.center,
@@ -128,20 +190,40 @@ class _UploadAudioTabState extends State<UploadAudioTab> {
   }
 
   Widget _buildProgressOverlay() {
-    return Container(
-      color: Colors.black54,
-      child: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const CircularProgressIndicator(),
-            const SizedBox(height: 16),
-            Text(_progressPhase, style: const TextStyle(color: Colors.white, fontSize: 18)),
-            const SizedBox(height: 8),
-            Text("${(_progress * 100).toInt()}%", style: const TextStyle(color: Colors.white70, fontSize: 16)),
-          ],
-        ),
+  return Container(
+    color: Colors.black54,
+    child: Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          CircularPercentIndicator(
+            radius: 60.0,
+            lineWidth: 10.0,
+            percent: _progress.clamp(0.0, 1.0), // Ensure between 0 and 1
+            animation: true,
+            animateFromLastPercent: true,
+            circularStrokeCap: CircularStrokeCap.round,
+            progressColor: Colors.tealAccent,
+            backgroundColor: Colors.white24,
+            center: Text(
+              "${(_progress * 100).toInt()}%",
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            _progressPhase,
+            style: const TextStyle(color: Colors.white, fontSize: 18),
+          ),
+        ],
       ),
-    );
-  }
+    ),
+  );
+}
+
+
 }

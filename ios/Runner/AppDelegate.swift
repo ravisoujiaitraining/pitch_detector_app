@@ -2,8 +2,10 @@ import UIKit
 import Flutter
 import AVFoundation
 @main
-@objc class AppDelegate: FlutterAppDelegate {
+@objc class AppDelegate: FlutterAppDelegate,FlutterStreamHandler {
     private let methodChannelName = "com.example.pitch_detector"
+    private let eventChannelName = "com.example.pitch_detector/progress"
+       private var eventSink: FlutterEventSink?
     private var bufferedMicProcessor: LivePitchProcessor?
     private var stopResultCallback: FlutterResult?
     
@@ -23,9 +25,17 @@ import AVFoundation
             case "detectPitch":
                 if let args = call.arguments as? [String: Any],
                    let filePath = args["filePath"] as? String {
-                    self.detectPitch(from: filePath) { note, frequency in
-                        result(["note": note, "frequency": frequency])
-                    }
+                    PitchDetector().detectPitch(
+                        from: filePath,
+                        progressSink: self.eventSink,
+                        completion: { note, frequency in
+                            result(["note": note, "frequency": frequency])
+                        },
+                        onError: { errorMessage in
+                            result(FlutterError(code: "DETECTION_FAILED", message: errorMessage, details: nil))
+                        }
+                    )
+
                 } else {
                     result(FlutterError(code: "INVALID_ARGUMENTS", message: "Missing filePath", details: nil))
                 }
@@ -152,11 +162,13 @@ import AVFoundation
                 result(FlutterMethodNotImplemented)
             }
         }
-        
+        // EventChannel
+        let eventChannel = FlutterEventChannel(name: eventChannelName, binaryMessenger: controller.binaryMessenger)
+        eventChannel.setStreamHandler(self)
         GeneratedPluginRegistrant.register(with: self)
         return super.application(application, didFinishLaunchingWithOptions: launchOptions)
     }
-    
+    /*
     private func detectPitch(from filePath: String, completion: @escaping (String, Float) -> Void) {
         DispatchQueue.global(qos: .userInitiated).async {
             do {
@@ -198,7 +210,17 @@ import AVFoundation
                 }
             }
         }
-    }
+    }*/
+    // MARK: - Stream Handler for Progress Events
+        func onListen(withArguments arguments: Any?, eventSink events: @escaping FlutterEventSink) -> FlutterError? {
+            self.eventSink = events
+            return nil
+        }
+
+        func onCancel(withArguments arguments: Any?) -> FlutterError? {
+            self.eventSink = nil
+            return nil
+        }
     
     // MARK: - MP4 pitch shift logic
     
@@ -319,7 +341,7 @@ let shiftedM4AURL = tempDir.appendingPathComponent("shifted_audio.m4a")
     
     private func mergeAudioWithVideo(videoComposition: AVMutableComposition, audioURL: URL, outputURL: URL, completion: @escaping (Bool) -> Void) {
         let audioAsset = AVAsset(url: audioURL)
-        
+        print("1111111111111")
         // Ensure tracks are loaded
         audioAsset.loadValuesAsynchronously(forKeys: ["tracks"]) {
             var error: NSError?
@@ -330,7 +352,8 @@ let shiftedM4AURL = tempDir.appendingPathComponent("shifted_audio.m4a")
                 DispatchQueue.main.async { completion(false) }
                 return
             }
-            
+            print("222222222222")
+
             let audioTracks = audioAsset.tracks(withMediaType: .audio)
             print("📦 Total tracks in audio asset: \(audioAsset.tracks.count)")
             print("🎧 Audio tracks found: \(audioTracks.count)")
@@ -342,7 +365,8 @@ let shiftedM4AURL = tempDir.appendingPathComponent("shifted_audio.m4a")
                 DispatchQueue.main.async { completion(false) }
                 return
             }
-            
+            print("3333333333333333")
+
             do {
                 try compAudioTrack.insertTimeRange(
                     CMTimeRange(start: .zero, duration: videoComposition.duration),
@@ -354,7 +378,8 @@ let shiftedM4AURL = tempDir.appendingPathComponent("shifted_audio.m4a")
                 DispatchQueue.main.async { completion(false) }
                 return
             }
-            
+            print("444444444444444444")
+
             // Remove existing output if present
             let fileManager = FileManager.default
             if fileManager.fileExists(atPath: outputURL.path) {
@@ -436,7 +461,7 @@ let shiftedM4AURL = tempDir.appendingPathComponent("shifted_audio.m4a")
             let audioAsset = AVAsset(url: audioURL)
 
             let composition = AVMutableComposition()
-
+print("11111111111111")
             guard
                 let videoTrack = videoAsset.tracks(withMediaType: .video).first,
                 let compVideoTrack = composition.addMutableTrack(
@@ -446,6 +471,7 @@ let shiftedM4AURL = tempDir.appendingPathComponent("shifted_audio.m4a")
                 completion(false)
                 return
             }
+            print("222222222222222")
 
             do {
                 try compVideoTrack.insertTimeRange(
@@ -458,6 +484,7 @@ let shiftedM4AURL = tempDir.appendingPathComponent("shifted_audio.m4a")
                 completion(false)
                 return
             }
+            print("33333333333333333")
 
             audioAsset.loadValuesAsynchronously(forKeys: ["tracks"]) {
                 var error: NSError?
@@ -483,6 +510,7 @@ let shiftedM4AURL = tempDir.appendingPathComponent("shifted_audio.m4a")
                     completion(false)
                     return
                 }
+                print("5555555555555")
 
                 if FileManager.default.fileExists(atPath: outputURL.path) {
                     try? FileManager.default.removeItem(at: outputURL)
@@ -492,6 +520,7 @@ let shiftedM4AURL = tempDir.appendingPathComponent("shifted_audio.m4a")
                     completion(false)
                     return
                 }
+                print("4444444444444444")
 
                 exportSession.outputURL = outputURL
                 exportSession.outputFileType = .mp4
@@ -600,4 +629,71 @@ let shiftedM4AURL = tempDir.appendingPathComponent("shifted_audio.m4a")
                 }
             }
         }
+    
+    
+    
+   /* private func detectPitch(from filePath: String, completion: @escaping (String, Float) -> Void) {
+            DispatchQueue.global(qos: .userInitiated).async {
+                do {
+                    let url = URL(fileURLWithPath: filePath)
+                    let audioFile = try AVAudioFile(forReading: url)
+                    let format = audioFile.processingFormat
+                    let frameCount = AVAudioFrameCount(audioFile.length)
+                    let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: frameCount)!
+                    try audioFile.read(into: buffer)
+
+                    let channelCount = Int(format.channelCount)
+                    let sampleCount = Int(buffer.frameLength)
+                    var monoSamples = [Float](repeating: 0.0, count: sampleCount)
+
+                    for c in 0..<channelCount {
+                        let channel = buffer.floatChannelData![c]
+                        for i in 0..<sampleCount {
+                            monoSamples[i] += channel[i]
+                        }
+                    }
+                    for i in 0..<sampleCount {
+                        monoSamples[i] /= Float(channelCount)
+                    }
+
+                    print("🔍 Running pitch detector in background...")
+                    let detector = PitchDetector()
+                    let chunkSize = 2048
+                    var collectedSamples: [Float] = []
+                    var lastReportedPercent = -1
+
+                    for i in stride(from: 0, to: monoSamples.count, by: chunkSize) {
+                        let end = min(i + chunkSize, monoSamples.count)
+                        let chunk = Array(monoSamples[i..<end])
+                        collectedSamples.append(contentsOf: chunk)
+
+                        let percent = Int((Float(end) / Float(monoSamples.count)) * 100)
+                        if percent != lastReportedPercent {
+                            self.eventSink?(percent)
+                            lastReportedPercent = percent
+                        }
+
+                        usleep(4000)
+                    }
+
+                    let frequency = detector.analyze(samples: collectedSamples, sampleRate: Float(format.sampleRate))
+                    let note = PitchDetector.frequencyToNote(frequency)
+
+                    DispatchQueue.main.async {
+                        completion(note, frequency)
+                        self.eventSink?(100)
+
+                    }
+
+                } catch {
+                    print("❌ Error during pitch detection: \(error)")
+                    DispatchQueue.main.async {
+                        self.eventSink?(0)
+                        completion("Error", 0.0)
+                    }
+                }
+            }
+        }
+    */
+    
 }

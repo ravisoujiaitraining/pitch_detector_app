@@ -2,22 +2,22 @@ import 'package:flutter/material.dart';
 import 'upload_audio_tab.dart';
 import 'media_control_tab.dart'; // ✅ NEW TAB
 import 'upload_youtube_tab.dart';
-
 class UploadPage extends StatefulWidget {
   const UploadPage({super.key});
 
   @override
   State<UploadPage> createState() => _UploadPageState();
 }
+final GlobalKey<MediaControlTabState> mediaControlKey = GlobalKey<MediaControlTabState>();
 
 class _UploadPageState extends State<UploadPage> with TickerProviderStateMixin {
   late final TabController _tabController;
   int _selectedIndex = 0;
 
-  final List<Widget> _tabViews = const [
-    UploadAudioTab(),
-    MediaControlTab(), // ✅ Replaces UploadVideoTab
-    UploadYouTubeTab(),
+  final List<Widget> _tabViews =  [
+    const UploadAudioTab(),
+    MediaControlTab(key: mediaControlKey), // ✅ Replaces UploadVideoTab
+    const UploadYouTubeTab(),
   ];
 
   @override
@@ -54,7 +54,7 @@ class _UploadPageState extends State<UploadPage> with TickerProviderStateMixin {
           labelStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
           tabs: const [
             Tab(text: 'MP3/WAV'),
-            Tab(text: 'Media Control'), // ✅ Updated
+            Tab(text: 'Media'), // ✅ Updated
             Tab(text: 'YouTube'),
           ],
         ),

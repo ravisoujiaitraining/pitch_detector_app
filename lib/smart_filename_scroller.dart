@@ -30,11 +30,18 @@ class _SmartFilenameScrollerState extends State<SmartFilenameScroller> {
   }
 
   void _checkOverflow() {
+    if (!mounted) return;
+
+    final safeText = widget.text.isNotEmpty ? widget.text : 'Untitled';
+    final safeStyle = widget.style.copyWith(
+      fontSize: widget.style.fontSize ?? 16,
+    );
+
     final textPainter = TextPainter(
-      text: TextSpan(text: widget.text, style: widget.style),
+      text: TextSpan(text: safeText, style: safeStyle),
       maxLines: 1,
       textDirection: TextDirection.ltr,
-    )..layout(maxWidth: widget.width);
+    )..layout(maxWidth: widget.width > 0 ? widget.width : 100);
 
     setState(() {
       _overflowing = textPainter.didExceedMaxLines;
@@ -50,15 +57,21 @@ class _SmartFilenameScrollerState extends State<SmartFilenameScroller> {
 
   @override
   Widget build(BuildContext context) {
+    final safeText = widget.text.isNotEmpty ? widget.text : 'Untitled';
+    final safeStyle = widget.style.copyWith(
+      fontSize: widget.style.fontSize ?? 16,
+    );
+    final effectiveHeight = safeStyle.fontSize! * 1.6;
+
     return GestureDetector(
       onTap: _handleTap,
       child: SizedBox(
-        height: widget.style.fontSize! * 1.6,
-        width: widget.width,
+        height: effectiveHeight,
+        width: widget.width > 0 ? widget.width : 100,
         child: (_overflowing && (widget.scroll || _scrollCount > 0))
             ? Marquee(
-                text: widget.text,
-                style: widget.style,
+                text: safeText,
+                style: safeStyle,
                 scrollAxis: Axis.horizontal,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 blankSpace: 40.0,
@@ -76,8 +89,8 @@ class _SmartFilenameScrollerState extends State<SmartFilenameScroller> {
                 },
               )
             : Text(
-                widget.text,
-                style: widget.style,
+                safeText,
+                style: safeStyle,
                 overflow: TextOverflow.ellipsis,
                 maxLines: 1,
               ),

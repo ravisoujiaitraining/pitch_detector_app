@@ -6,9 +6,9 @@ import 'package:just_audio/just_audio.dart';
 import 'package:audio_session/audio_session.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
-import 'package:share_plus/share_plus.dart';
 import 'smart_filename_scroller.dart';
-
+import 'upload_page.dart';
+import 'share_file.dart';
 class GradientAudioPlayer extends StatefulWidget {
   final String outputPath;
   final String fileName;
@@ -171,7 +171,16 @@ class _AudioPlayerUIState extends State<_AudioPlayerUI> with SingleTickerProvide
     _waveController.dispose();
     super.dispose();
   }
+Future<String> saveLocalCopy(String filePath) async {
+  final appDir = await getApplicationDocumentsDirectory();
+  final fileName = filePath.split('/').last;
+  final newPath = '${appDir.path}/$fileName';
 
+  final sourceFile = File(filePath);
+  await sourceFile.copy(newPath);
+
+  return newPath;
+}
   String _format(Duration d) => '${d.inMinutes}:${(d.inSeconds % 60).toString().padLeft(2, '0')}';
 
   @override
@@ -284,11 +293,14 @@ class _AudioPlayerUIState extends State<_AudioPlayerUI> with SingleTickerProvide
               IconButton(
                 icon: const Icon(Icons.share_rounded, size: 32, color: Colors.white),
                 onPressed: () async {
-                  final appDocDir = await getApplicationDocumentsDirectory();
-                  final newPath = p.join(appDocDir.path, widget.fileName);
-                  final originalFile = File(widget.outputPath);
-                  final savedFile = await originalFile.copy(newPath);
-                  await Share.shareXFiles([XFile(savedFile.path)], text: "🎵 Check out this pitch-shifted audio!");
+                      shareFile(context,widget.outputPath);
+
+                    /*final localCopyPath = await saveLocalCopy(widget.outputPath);
+
+                 
+                  await Share.shareXFiles([XFile(localCopyPath)], text: "🎵 Check out this pitch-shifted audio!");
+                */
+                mediaControlKey.currentState?.refreshMediaList();
                 },
               ),
               IconButton(
