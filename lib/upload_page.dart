@@ -53,7 +53,7 @@ class _UploadPageState extends State<UploadPage> with TickerProviderStateMixin {
           unselectedLabelColor: Colors.white70,
           labelStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
           tabs: const [
-            Tab(text: 'MP3/WAV'),
+            Tab(text: 'Audio/Video'),
             Tab(text: 'Media'), // ✅ Updated
             Tab(text: 'YouTube'),
           ],
