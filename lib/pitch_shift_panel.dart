@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
+import 'package:pitch_detector_app/upload_page.dart';
 import 'pitch_processing_service.dart';
 import 'gradient_audio_player.dart';
 import 'full_screen_video_player.dart';
@@ -78,7 +79,7 @@ class _PitchShiftPanelState extends State<PitchShiftPanel> {
 
     await Future.delayed(const Duration(milliseconds: 500));
     setState(() => _showProgress = false);
-
+mediaControlKey.currentState?.refreshMediaList();
     if (_outputPath != null && File(_outputPath!).existsSync()) {
       _showPlayerModal(_outputPath!);
     }
@@ -131,8 +132,12 @@ class _PitchShiftPanelState extends State<PitchShiftPanel> {
     setState(() => _showProgress = false);
 
     if (mergedPath != null) {
+     File(shiftedWav).delete();
+      mediaControlKey.currentState?.refreshMediaList();
       _showMergedVideoPlayer(mergedPath);
     }
+   
+
   }
 
   void _showPlayerModal(String path) {

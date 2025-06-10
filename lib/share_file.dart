@@ -5,6 +5,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as path;
 
 Future<void> shareFile(BuildContext context, String filePath) async {
+  print("📤 Sharing file: $filePath");
   final tempDir = await getTemporaryDirectory();
   final filename = path.basename(filePath);
   final tempPath = '${tempDir.path}/$filename';
@@ -23,5 +24,26 @@ Future<void> shareFile(BuildContext context, String filePath) async {
     );
   } catch (e) {
     print("❌ Error sharing file: $e");
+  }
+}
+Future<void> safeShareFileMediaTab(BuildContext context,String filePath, Rect origin) async {
+  try {
+    final file = File(filePath);
+    if (!await file.exists()) throw Exception("File not found.");
+
+    final tempDir = await getTemporaryDirectory();
+    final safeName = path.basename(filePath);
+    final safePath = path.join(tempDir.path, safeName);
+    final safeFile = await file.copy(safePath);
+
+    await Share.shareXFiles(
+      [XFile(safeFile.path)],
+      text: "🎬 Here's your pitch-shifted media!",
+      sharePositionOrigin: origin,
+    );
+  } catch (e) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text("Share failed: $e")),
+    );
   }
 }

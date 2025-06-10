@@ -461,7 +461,6 @@ let shiftedM4AURL = tempDir.appendingPathComponent("shifted_audio.m4a")
             let audioAsset = AVAsset(url: audioURL)
 
             let composition = AVMutableComposition()
-print("11111111111111")
             guard
                 let videoTrack = videoAsset.tracks(withMediaType: .video).first,
                 let compVideoTrack = composition.addMutableTrack(
@@ -471,7 +470,6 @@ print("11111111111111")
                 completion(false)
                 return
             }
-            print("222222222222222")
 
             do {
                 try compVideoTrack.insertTimeRange(
@@ -484,7 +482,6 @@ print("11111111111111")
                 completion(false)
                 return
             }
-            print("33333333333333333")
 
             audioAsset.loadValuesAsynchronously(forKeys: ["tracks"]) {
                 var error: NSError?
@@ -510,7 +507,6 @@ print("11111111111111")
                     completion(false)
                     return
                 }
-                print("5555555555555")
 
                 if FileManager.default.fileExists(atPath: outputURL.path) {
                     try? FileManager.default.removeItem(at: outputURL)
@@ -520,7 +516,6 @@ print("11111111111111")
                     completion(false)
                     return
                 }
-                print("4444444444444444")
 
                 exportSession.outputURL = outputURL
                 exportSession.outputFileType = .mp4
